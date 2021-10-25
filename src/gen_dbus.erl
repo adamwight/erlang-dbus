@@ -99,17 +99,17 @@ setup(DBus_config, State) ->
                           %% Ignore
 			  {Iface1, Interfaces};
 		      {methods, Members} ->
-			  ?debug("Methods: ~p~n", [Members]),
+			  ?LOG_DEBUG("Methods: ~p~n", [Members]),
                           {Iface,
                            build_introspect(method, Members,
                                             State1, Interfaces)};
  		      {signals, Members} ->
- 			  ?debug("Signals: ~p~n", [Members]),
+ 			  ?LOG_DEBUG("Signals: ~p~n", [Members]),
  			  {Iface,
                            build_introspect(signal, Members,
                                             State1, Interfaces)};
 		      _ ->
-			  ?debug("Ignore config param ~p~n", [E]),
+			  ?LOG_DEBUG("Ignore config param ~p~n", [E]),
 			  {Iface, Interfaces}
 		  end
 	  end,
@@ -122,7 +122,7 @@ setup(DBus_config, State) ->
                                                          methods=Methods,
                                                          signals=Signals}
                                       end, dict:to_list(Interfaces))},
-    ?debug("Node: ~p~n", [Node]),
+    ?LOG_DEBUG("Node: ~p~n", [Node]),
     Xml_body = dbus_introspect:to_xml(Node),
     State2 = State1#state{default_iface=Iface,node=Node,xml_body=Xml_body},
     {ok, State2}.
@@ -133,7 +133,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 handle_call(Request, _From, State) ->
-    ?debug("Unhandled call in: ~p~n", [Request]),
+    ?LOG_DEBUG("Unhandled call in: ~p~n", [Request]),
     {reply, ok, State}.
 
 
@@ -155,13 +155,13 @@ handle_cast({reply, From, Reply}, State) ->
 			ReplyMsg1 = dbus_message:error(Message, Iface, Text),
 			ReplyMsg1;
 		    _ ->
-			?debug("Illegal reply ~p~n", [Reply]),
+			?LOG_DEBUG("Illegal reply ~p~n", [Reply]),
 			ReplyMsg1 = dbus_message:error(Message, 'org.freedesktop.DBus.Error.Failed', "Failed"),
 			ReplyMsg1
 		end,
 	    ok = dbus_connection:cast(Conn, ReplyMsg);
 	false ->
-	    ?debug("Pending not found: ~p ~p~n", [From, Pending]),
+	    ?LOG_DEBUG("Pending not found: ~p ~p~n", [From, Pending]),
 	    ignore
     end,
     Pending1 = lists:keydelete(From, 1, Pending),
@@ -186,7 +186,7 @@ handle_cast({signal, SignalName, Args, Options}, State) ->
     end;
 
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 handle_info({dbus_method_call, Message, Conn}, State) ->
@@ -197,7 +197,7 @@ handle_info({dbus_method_call, Message, Conn}, State) ->
     case Member of
 	'Introspect' ->
 	    ReplyBody = iolist_to_binary(State#state.xml_body),
-	    ?debug("Introspect ~p ~p~n", [Message, ReplyBody]),
+	    ?LOG_DEBUG("Introspect ~p ~p~n", [Message, ReplyBody]),
 	    Reply = dbus_message:return(Message, [string], [ReplyBody]),
 	    ok = dbus_connection:cast(Conn, Reply),
 	    {noreply, State};
@@ -207,18 +207,18 @@ handle_info({dbus_method_call, Message, Conn}, State) ->
 
 	    case catch do_method_call(Module, Member, Message, Conn, Sub) of
 		{'EXIT', {undef, _}=Reason} ->
-		    ?debug("undef method ~p~n", [Reason]),
+		    ?LOG_DEBUG("undef method ~p~n", [Reason]),
 		    ErrorName = "org.freedesktop.DBus.Error.UnknownMethod",
 		    ErrorText = "Erlang: Function not found: " ++ MemberStr,
 		    Reply = dbus_message:error(Message, ErrorName, ErrorText),
 		    ok = dbus_connection:cast(Conn, Reply),
 		    {noreply, State};
 		{'EXIT', Reason} ->
- 		    ?debug("Error ~p~n", [Reason]),
+ 		    ?LOG_DEBUG("Error ~p~n", [Reason]),
 		    ErrorName = "org.freedesktop.DBus.Error.InvalidParameters",
 		    ErrorText = "Erlang: Invalid parameters.",
 		    Reply = dbus_message:error(Message, ErrorName, ErrorText),
- 		    ?debug("InvalidParameters ~p~n", [Reply]),
+ 		    ?LOG_DEBUG("InvalidParameters ~p~n", [Reply]),
 		    ok = dbus_connection:cast(Conn, Reply),
 		    {noreply, State};
 		{ok, Sub1} ->

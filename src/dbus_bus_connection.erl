@@ -75,7 +75,7 @@ connect(#bus_id{}=BusId, ServiceReg) ->
 		    case dbus_proxy:start_link(Conn, ?DBUS_SERVICE, <<"/">>, ?DBUS_NODE) of
 			{ok, DBus} ->
 			    ConnId = hello(DBus),
-			    ?debug("Hello connection id: ~p~n", [ConnId]),
+			    ?LOG_DEBUG("Hello connection id: ~p~n", [ConnId]),
                 dbus_peer_connection:set_unique_name(PConn, ConnId),
 			    dbus_peer_connection:set_controlling_process(PConn, DBus),
 			    {ok, {?MODULE, DBus}};

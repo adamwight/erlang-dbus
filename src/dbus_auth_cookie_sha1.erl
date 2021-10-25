@@ -21,10 +21,10 @@
 %% @doc Initialize DBUS_AUTH_COOKIE_SHA1 authentication
 %% @end
 init() ->
-    ?debug("Init DBUS_AUTH_COOKIE_SHA1 authentication~n", []),
+    ?LOG_DEBUG("Init DBUS_AUTH_COOKIE_SHA1 authentication~n", []),
     case os:getenv("USER") of
         false ->
-            ?error("DBUS_AUTH_COOKIE_SHA1 can not be used without USER env", []),
+            ?LOG_ERROR("DBUS_AUTH_COOKIE_SHA1 can not be used without USER env", []),
             {error, invalid_user};
         User ->
             HexUser = dbus_hex:encode(list_to_binary(User)),
@@ -36,7 +36,7 @@ init() ->
 %% @end
 challenge(HexChall, waiting_challenge) ->
     Chall = dbus_hex:decode(HexChall),
-    ?debug("DBUS_COOKIE_SHA1 challenge: ~p", [Chall]),
+    ?LOG_DEBUG("DBUS_COOKIE_SHA1 challenge: ~p", [Chall]),
     case binary:split(Chall, [<< $\s >>], [global]) of
         [Context, CookieId, ServerChallenge] ->
             case read_cookie(Context, CookieId) of
@@ -69,7 +69,7 @@ calc_response(ServerChallenge, Challenge, Cookie) ->
 
 
 read_cookie(Context, CookieId) ->
-    ?debug("Reading DBUS cookie: context=~s, cookie_id=~s~n", [Context, CookieId]),
+    ?LOG_DEBUG("Reading DBUS cookie: context=~s, cookie_id=~s~n", [Context, CookieId]),
     Name = filename:join([os:getenv("HOME"), ".dbus-keyrings", Context]),
     case file:open(Name, [read, binary]) of
         {ok, File} ->

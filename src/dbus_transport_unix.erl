@@ -82,18 +82,18 @@ connect(BusOptions, _Options) ->
 %%
 init([Path, Owner]) when is_pid(Owner), is_binary(Path) ->
     true = link(Owner),
-    ?debug("Connecting to UNIX socket: ~p~n", [Path]),
+    ?LOG_DEBUG("Connecting to UNIX socket: ~p~n", [Path]),
     case gen_tcp:connect({local, Path}, 0, [local, {recbuf, 65535}]) of
 	{ok, Sock} ->
             Loop = spawn_link(?MODULE, do_read, [Sock, self()]),
             gen_tcp:controlling_process(Sock, Loop),
             {ok, #state{sock=Sock, owner=Owner, loop=Loop}};
 	{error, Err} ->
-	    ?error("Error creating socket: ~p~n", [Err]),
+	    ?LOG_ERROR("Error creating socket: ~p~n", [Err]),
 	    {stop, Err}
     end;
 init(_) ->
-    ?error("Invalid argument in UNIX transport init~n", []),
+    ?LOG_ERROR("Invalid argument in UNIX transport init~n", []),
     {error, invalid_argument}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -106,7 +106,7 @@ handle_call({set_raw, Raw}, _From, State) ->
     {reply, ok, State#state{raw=Raw}};
 
 handle_call(Request, _From, State) ->
-    ?error("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
     {reply, ok, State}.
 
 
@@ -114,7 +114,7 @@ handle_cast({send, Data}, State) when is_list(Data) ->
     handle_cast({send, iolist_to_binary(Data)}, State);
 
 handle_cast({send, Data}, #state{sock=Sock}=State) when is_binary(Data) ->
-    %%?debug("unix send(~p)~n", [Data]),
+    %%?LOG_DEBUG("unix send(~p)~n", [Data]),
     gen_tcp:send(Sock, Data),
     {noreply, State};
 
@@ -125,21 +125,21 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 handle_info({unix, Data}, #state{owner=Owner}=State) ->
-    %%?debug("unix received(~p)~n", [Data]),
+    %%?LOG_DEBUG("unix received(~p)~n", [Data]),
     Owner ! {received, Data},
     {noreply, State};
 
 handle_info({'EXIT', _From, _Reason}, #state{owner=Owner}=State) ->
-    ?error("Listener has died, who will listen ?~n", []),
+    ?LOG_ERROR("Listener has died, who will listen ?~n", []),
     Owner ! closed,
     {stop, normal, State#state{sock=undefined}};
 
 handle_info(Info, State) ->
-    ?error("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
+    ?LOG_ERROR("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
 terminate(_Reason, #state{sock=Sock, loop=Loop}) ->
@@ -165,6 +165,6 @@ do_read(Sock, Pid) ->
             timer:sleep(500),
             exit(unix_closed);
         Unhandled ->
-            ?debug("Unhandled receive: ~p", [Unhandled]),
+            ?LOG_DEBUG("Unhandled receive: ~p", [Unhandled]),
             do_read(Sock, Pid)
     end.

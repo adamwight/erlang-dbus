@@ -435,7 +435,7 @@ unmarshal_data(Data, Acc) ->
         more ->
             {ok, lists:reverse(Acc), Data};
         _ ->
-            ?error("Error parsing data~n", []),
+            ?LOG_ERROR("Error parsing data~n", []),
             throw(dbus_parse_error)
     catch
         {'EXIT', Err} ->
@@ -492,7 +492,7 @@ unmarshal_header(Bin) when byte_size(Bin) < 16 ->
 unmarshal_header(<<Endian/integer, Type/integer, Flags/integer, ?DBUS_VERSION_MAJOR, Rest/bits>>) ->
     unmarshal_header2(Rest, #dbus_header{endian=Endian, type=Type, flags=Flags});
 unmarshal_header(_Data) ->
-    ?debug("Bad message header: ~p~n", [_Data]),
+    ?LOG_DEBUG("Bad message header: ~p~n", [_Data]),
     throw(bad_header).
 
 unmarshal_header2(<<Length:4/unsigned-little-integer-unit:8, Serial:4/unsigned-little-integer-unit:8, Bin/bits>>,
