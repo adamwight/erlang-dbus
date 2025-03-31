@@ -52,10 +52,10 @@ get_cookie() ->
     end.
 
 get_current_user_uid() ->
-	?debug("Getting current USER env~n", []),
+	?LOG_DEBUG("Getting current USER env~n", []),
 	case os:getenv("USER") of
 			false ->
-					?debug("Missing USER env~n", []),
+					?LOG_DEBUG("Missing USER env~n", []),
 					?cookie;
 			User ->
 					% list_to_binary(User)
@@ -63,7 +63,7 @@ get_current_user_uid() ->
 	end.
 
 resolve_user_name(User) ->
-	?debug("Resolving uid for user ~s~n", [User]),
+	?LOG_DEBUG("Resolving uid for user ~s~n", [User]),
 	Command = io_lib:format("id -u ~s", [User]),
 	Opts = [stream, exit_status, use_stdio,
 			   stderr_to_stdout, in, eof],
@@ -71,10 +71,10 @@ resolve_user_name(User) ->
 	case get_data(P, []) of
 		{0, Result} -> 
 			Uid = string:trim(Result),
-			?debug("Successfully resolved user ~s to uid ~s~n", [User, Uid]),
+			?LOG_DEBUG("Successfully resolved user ~s to uid ~s~n", [User, Uid]),
 			dbus_hex:encode(list_to_binary(Uid));
 		{1, Reason} ->
-			?debug("Failed to resolve user ~s to uid: ~s~n", [User, Reason]),
+			?LOG_DEBUG("Failed to resolve user ~s to uid: ~s~n", [User, Reason]),
 			?cookie;
 		_ -> ?cookie
 	end.
