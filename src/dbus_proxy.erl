@@ -236,7 +236,7 @@ init([Conn, Service0, Path]) ->
         Unique = do_unique_name(Conn, Service),
         {ok, #state{conn=Conn, service=Service, path=Path, node=Node, uniquename=Unique, handlers=[]}};
     {error, Err} ->
-        ?error("Error introspecting object ~p: ~p~n", [Path, Err]),
+        ?LOG_ERROR("Error introspecting object ~p: ~p~n", [Path, Err]),
         {stop, Err}
     end;
 
@@ -250,7 +250,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%-logging(debug).
 handle_call({method, IfaceName, MethodName, Args}, _From, #state{node=Node}=State) ->
-    ?debug("Calling ~p:~p.~p(~p)~n", [State#state.path, IfaceName, MethodName, Args]),
+    ?LOG_DEBUG("Calling ~p:~p.~p(~p)~n", [State#state.path, IfaceName, MethodName, Args]),
     case dbus_introspect:find_method(Node, IfaceName, MethodName) of
         {ok, Method} ->
             do_method(IfaceName, Method, Args, State);
@@ -323,7 +323,7 @@ handle_call({cast, Msg}, _From, #state{conn=Conn}=State) ->
     {reply, Ret, State};
 
 handle_call(Request, _From, State) ->
-    ?error("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
     {reply, ok, State}.
 
 
@@ -331,7 +331,7 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 handle_info({dbus_signal, #dbus_message{header=Hdr, body=Args}}, #state{handlers=Handlers}=State) ->
@@ -359,7 +359,7 @@ handle_info({error, #dbus_message{body=Body}=Msg, {tag, From, Options}}, State) 
     {noreply, State};
 
 handle_info(Info, State) ->
-    ?error("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
+    ?LOG_ERROR("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
 
@@ -397,17 +397,17 @@ may_throw({throw, What}) -> throw(What);
 may_throw(AnyOther) -> AnyOther.
 
 do_introspect(Conn, Service, Path) ->
-    ?debug("Introspecting: ~p:~p~n", [Service, Path]),
+    ?LOG_DEBUG("Introspecting: ~p:~p~n", [Service, Path]),
     case dbus_connection:call(Conn, dbus_message:introspect(Service, Path)) of
         {ok, #dbus_message{body=Xml}} when is_binary(Xml) ->
             try dbus_introspect:from_xml_string(Xml) of
                 #dbus_node{}=Node -> {ok, Node}
             catch _:Err ->
-                    ?error("Error parsing introspection infos: ~p~n", [Err]),
+                    ?LOG_ERROR("Error parsing introspection infos: ~p~n", [Err]),
                     {error, parse_error}
             end;
         {ok, Msg} ->
-            ?error("Error introspecting object: ~p", [Msg]),
+            ?LOG_ERROR("Error introspecting object: ~p", [Msg]),
             {error, invalid_introspect};
         {error, #dbus_message{body=Body}=Msg} ->
             Err = dbus_message:get_field(?FIELD_ERROR_NAME, Msg),
@@ -421,7 +421,7 @@ do_unique_name(Conn, Service) ->
         {ok, #dbus_message{body=Unique}} when is_binary(Unique) ->
             Unique;
         {ok, Msg} ->
-            ?error("Error getting name owner: ~p", [Msg]),
+            ?LOG_ERROR("Error getting name owner: ~p", [Msg]),
             {error, invalid_nameowner};
         {error, #dbus_message{}=Err} ->
             case dbus_message:get_field(?FIELD_ERROR_NAME, Err) of
@@ -473,7 +473,7 @@ do_handle_signal(#signal_handler{mfa={Mod, Fun, Ctx}}=Handler, Acc, Sender, Ifac
         true ->
             try Mod:Fun(Sender, Iface, Signal, Path, Args, Ctx)
             catch Cls:Err ->
-                    ?error("Error dispatching signal to ~p:~p/6: ~p:~p", [Mod, Fun, Cls, Err])
+                    ?LOG_ERROR("Error dispatching signal to ~p:~p/6: ~p:~p", [Mod, Fun, Cls, Err])
             end,
             [ Handler | Acc ];
         false -> Acc
@@ -482,7 +482,7 @@ do_handle_signal(#signal_handler{mfa={Mod, Fun, Ctx}}=Handler, Acc, Sender, Ifac
 do_handle_signal(#signal_handler{mfa={Fun, Ctx}}=Handler, Acc, Sender, Iface, Signal, Path, Args) ->
     try Fun(Sender, Iface, Signal, Path, Args, Ctx)
     catch Cls:Err ->
-            ?error("Error dispatching signal to ~p/6: ~p:~p", [Fun, Cls, Err])
+            ?LOG_ERROR("Error dispatching signal to ~p/6: ~p:~p", [Fun, Cls, Err])
     end,
     [ Handler | Acc ];
 

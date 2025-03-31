@@ -92,7 +92,7 @@ handle_call({get_bus, #bus_id{}=BusId}, _From, #state{busses=Busses}=State) ->
 handle_call({release_bus, Bus}, _From, #state{busses=Busses}=State) when is_pid(Bus) ->
     case lists:keysearch(Bus, 2, Busses) of
 	{value, {BusId, _Bus}} ->
-            ?debug("Release BusId ~p~n", [BusId]),
+            ?LOG_DEBUG("Release BusId ~p~n", [BusId]),
             Busses1 = lists:keydelete(Bus, 2, Busses),
             ok = dbus_bus:stop(Bus),
             {reply, ok, State#state{busses=Busses1}};
@@ -102,24 +102,24 @@ handle_call({release_bus, Bus}, _From, #state{busses=Busses}=State) when is_pid(
 
 handle_call({export_service, _Service, ServiceName}, _From, #state{busses=Busses}=State) ->
     Fun = fun({_, Bus}) ->
-		  ?debug("export_service bus ~p~n", [Bus]),
+		  ?LOG_DEBUG("export_service bus ~p~n", [Bus]),
 		  ok = dbus_bus:export_service(Bus, ServiceName)
 	  end,
-    ?debug("export_service name ~p~n", [ServiceName]),
+    ?LOG_DEBUG("export_service name ~p~n", [ServiceName]),
     lists:foreach(Fun, Busses),
     {reply, ok, State};
 
 handle_call({unexport_service, _Service, ServiceName}, _From, #state{busses=Busses}=State) ->
     Fun = fun({_, Bus}) ->
-		  ?debug("~p unexport_service bus ~p~n", [?MODULE, Bus]),
+		  ?LOG_DEBUG("~p unexport_service bus ~p~n", [?MODULE, Bus]),
 		  ok = dbus_bus:unexport_service(Bus, ServiceName)
 	  end,
-    ?debug("~p unexport_service name ~p~n", [?MODULE, ServiceName]),
+    ?LOG_DEBUG("~p unexport_service name ~p~n", [?MODULE, ServiceName]),
     lists:foreach(Fun, Busses),
     {reply, ok, State};
 
 handle_call(Request, _From, State) ->
-    ?error("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
     {reply, ok, State}.
 
 
@@ -134,11 +134,11 @@ handle_cast(#dbus_message{}=Msg, #state{busses=Buses}=State) ->
     {noreply, State};
 
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 handle_info(Info, State) ->
-    ?error("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
+    ?LOG_ERROR("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
 

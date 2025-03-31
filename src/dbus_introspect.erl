@@ -105,7 +105,7 @@ from_xml_string(Data) when is_binary(Data) ->
         {ok, #dbus_node{}=Node, _Rest} ->
             Node;
         {_Tag, _Location, Reason, _EndTags, _State} ->
-            ?error("Error parsing introspection: ~p~n", [Reason]),
+            ?LOG_ERROR("Error parsing introspection: ~p~n", [Reason]),
             throw({error, parse_error})
     end.
 
@@ -123,7 +123,7 @@ from_xml(Filename) ->
         {ok, #dbus_node{}=Node, _Rest} ->
             Node;
         {_Tag, _Location, Reason, _EndTags, _State} ->
-            ?error("Error parsing introspection: ~p~n", [Reason]),
+            ?LOG_ERROR("Error parsing introspection: ~p~n", [Reason]),
             throw({error, parse_error})
     end.
 

@@ -81,7 +81,7 @@ start_link(BusId, ServiceReg, Options) when is_record(BusId, bus_id),
     case gen_statem:start_link(?MODULE, [BusId, ServiceReg, Options, self()], []) of
         {ok, Pid} -> {ok, {?MODULE, Pid}};
         {error, Err} -> {error, Err}
-    end.                           
+    end.
 
 %% @doc Close the connection
 %% @end
@@ -102,7 +102,7 @@ call(Conn, #dbus_message{}=Msg) when is_pid(Conn) ->
                 {error, Tag, Res} ->
                     {error, Res}
             after ?TIMEOUT ->
-                    ?error("DBUS timeout~n", []),
+                    ?LOG_ERROR("DBUS timeout~n", []),
                     throw({error, timeout})
             end;
         {error, Err} ->
@@ -217,19 +217,19 @@ handle_event(_, close, _StateName, #state{sock=Sock}=State) ->
 
 %% STATE: connected
 handle_event(info, {received, Bin}, connected, State) ->
-    ?debug("Unknown command: ~s", [Bin]),
+    ?LOG_DEBUG("Unknown command: ~s", [Bin]),
     send_error(State, <<"Unknown command">>),
     {next_state, connected, State};
 
 handle_event({call, {_Pid, Tag}=From}, auth, connected, #state{sock=Sock, mechs=[Mech|Rest]}=State) ->
     case Mech:init() of
         {ok, Resp} ->
-            ?debug("DBUS auth: sending initial data~n", []),
+            ?LOG_DEBUG("DBUS auth: sending initial data~n", []),
             dbus_transport:send(Sock, << "AUTH ", Resp/binary, "\r\n" >>),
             gen_statem:reply(From, {ok, {self(), Tag}}),
             {next_state, waiting_for_ok, State#state{waiting=[From], mechs=Rest}};
         {continue, Resp, MechState} ->
-            ?debug("DBUS auth: sending initial data (continue)~n", []),
+            ?LOG_DEBUG("DBUS auth: sending initial data (continue)~n", []),
             dbus_transport:send(Sock, << "AUTH ", Resp/binary, "\r\n" >>),
             gen_statem:reply(From, {ok, {self(), Tag}}),
             {next_state, waiting_for_data, State#state{waiting=[From], mechs=Rest, mech_state={Mech, MechState}}}
@@ -250,12 +250,12 @@ handle_event(info, {received, <<"OK", Line/binary>>}, waiting_for_data, State) -
     process_ok(Line, State);
 
 handle_event(info, {received, <<"ERROR", Line/binary>>}, waiting_for_data, State) ->
-    ?debug("state: waiting_for_data, error: ~s", [parse_error(Line)]),
+    ?LOG_DEBUG("state: waiting_for_data, error: ~s", [parse_error(Line)]),
     ok = send_cancel(State),
     {stop, waiting_for_reject, State};
 
 handle_event(info, {received, Bin}, waiting_for_data, State) ->
-    ?debug("Unknown command waiting for data: ~s", [Bin]),
+    ?LOG_DEBUG("Unknown command waiting for data: ~s", [Bin]),
     send_error(State, <<"Unknown command">>),
     {next_state, waiting_for_data, State};
 
@@ -275,17 +275,17 @@ handle_event(info, {received, <<"OK", Line/binary>>}, waiting_for_ok, State) ->
     process_ok(Line, State);
 
 handle_event(info, {received, <<"DATA ", Data/binary>>}, waiting_for_ok, State) ->
-    ?debug("Unexpected data: ~s", [Data]),
+    ?LOG_DEBUG("Unexpected data: ~s", [Data]),
     ok = send_cancel(State),
     {next_state, waiting_for_ok, State};
 
 handle_event(info, {received, <<"ERROR", Data/binary>>}, waiting_for_ok, State) ->
-    ?debug("state: waiting_for_ok, error: ~s", [parse_error(Data)]),
+    ?LOG_DEBUG("state: waiting_for_ok, error: ~s", [parse_error(Data)]),
     ok = send_cancel(State),
     {stop, waiting_for_ok, State};
 
 handle_event(info, {received, Bin}, waiting_for_ok, State) ->
-    ?debug("Unknown command waiting for ok: ~p", [Bin]),
+    ?LOG_DEBUG("Unknown command waiting for ok: ~p", [Bin]),
     ok = send_error(State, <<"Unknown command">>),
     {next_state, waiting_for_ok, State};
 
@@ -302,7 +302,7 @@ handle_event(info, {received, <<"REJECTED", Line/binary>>}, waiting_for_reject, 
     process_rejected(Line, State);
 
 handle_event(info, {received, Bin}, waiting_for_reject, State) ->
-    ?debug("Unknown command waiting for reject: ~s", [Bin]),
+    ?LOG_DEBUG("Unknown command waiting for reject: ~s", [Bin]),
     {stop, disconnect, State};
 
 handle_event({call, From}, {call, _}, waiting_for_reject, _State) ->
@@ -317,10 +317,10 @@ handle_event({call, {_Pid, Tag}=From}, auth, waiting_for_reject, #state{waiting=
 handle_event(info, {received, <<"AGREE_UNIX_FD\r\n">>}, waiting_for_agree, #state{sock=Sock}=State) ->
     case dbus_transport:support_unix_fd(Sock) of
 	true ->
-	    ?debug("Succesfully negotiated UNIX FD passing~n", []),
+	    ?LOG_DEBUG("Succesfully negotiated UNIX FD passing~n", []),
 	    begin_session(State#state{unix_fd=true});
 	false ->
-	    ?debug("Unknown command waiting for agree unix fd: AGREE_UNIX_FD", []),
+	    ?LOG_DEBUG("Unknown command waiting for agree unix fd: AGREE_UNIX_FD", []),
 	    ok = send_error(State, <<"Unknown command">>),
 	    {next_state, waiting_for_agree}
     end;
@@ -328,16 +328,16 @@ handle_event(info, {received, <<"AGREE_UNIX_FD\r\n">>}, waiting_for_agree, #stat
 handle_event(info, {received, <<"ERROR", Line/binary>>}, waiting_for_agree, #state{sock=Sock}=State) ->
     case dbus_transport:support_unix_fd(Sock) of
 	true ->
-	    ?debug("Failed to negotiate UNIX FD passing~n", []),
+	    ?LOG_DEBUG("Failed to negotiate UNIX FD passing~n", []),
 	    begin_session(State#state{unix_fd=false});
 	false ->
-	    ?debug("Unknown command waiting for agree unix fd : ~s", [Line]),
+	    ?LOG_DEBUG("Unknown command waiting for agree unix fd : ~s", [Line]),
 	    ok = send_error(State, <<"Unknown command">>),
 	    {next_state, waiting_for_agreee, State}
     end;
 
 handle_event(info, {received, Bin}, waiting_for_agree, State) ->
-    ?debug("Unknown command waiting for agree unix fd : ~s", [Bin]),
+    ?LOG_DEBUG("Unknown command waiting for agree unix fd : ~s", [Bin]),
     {next_state, waiting_for_agree, State};
 
 handle_event({call, From}, {call, _}, waiting_for_agree, _State) ->
@@ -370,7 +370,7 @@ handle_event({call, From}, auth, authenticated, _State) ->
 handle_event({call, {Pid, Tag}=From}, {call, #dbus_message{}=Msg}, authenticated,
               #state{sock=Sock, serial=S, pending=Pending}=State) ->
     Data = dbus_marshaller:marshal_message(dbus_message:set_serial(S, Msg)),
-    ?debug("Calling ~p", [catch dbus_marshaller:unmarshal_data(list_to_binary(Data))]),
+    ?LOG_DEBUG("Calling ~p", [catch dbus_marshaller:unmarshal_data(list_to_binary(Data))]),
     true = ets:insert(Pending, {S, Pid, Tag}),
     ok = dbus_transport:send(Sock, Data),
     gen_statem:reply(From, {ok, {self(), Tag}}),
@@ -379,18 +379,18 @@ handle_event({call, {Pid, Tag}=From}, {call, #dbus_message{}=Msg}, authenticated
 handle_event(cast, #dbus_message{}=Msg, authenticated,
               #state{sock=Sock, serial=S}=State) ->
     Data = dbus_marshaller:marshal_message(dbus_message:set_serial(S, Msg)),
-    ?debug("Casting ~p", [catch dbus_marshaller:unmarshal_data(list_to_binary(Data))]),
+    ?LOG_DEBUG("Casting ~p", [catch dbus_marshaller:unmarshal_data(list_to_binary(Data))]),
     ok = dbus_transport:send(Sock, Data),
     {keep_state, State#state{serial=S+1}};
 
 %% Other
 handle_event(info, closed, _, State) ->
-    ?debug("Connection closed...~n", []),
+    ?LOG_DEBUG("Connection closed...~n", []),
     {stop, closed, State};
 
 %% Unhandled
 handle_event(What, Evt, StateName, State) ->
-    ?error("Unhandled event: ~p:~p @ ~p~n", [What, Evt, StateName]),
+    ?LOG_ERROR("Unhandled event: ~p:~p @ ~p~n", [What, Evt, StateName]),
     {next_state, StateName, State}.
 
 
@@ -408,7 +408,7 @@ handle_messages([], State) ->
     {ok, State};
 
 handle_messages([#dbus_message{header=#dbus_header{type=Type}}=Msg | R], State) ->
-    ?debug("Received ~p~n", [Msg]),
+    ?LOG_DEBUG("Received ~p~n", [Msg]),
     case handle_message(Type, Msg, State) of
         {ok, State2} ->
             handle_messages(R, State2);
@@ -422,10 +422,10 @@ handle_message(?TYPE_METHOD_RETURN, Msg, #state{pending=Pending}=State) ->
         [{Serial, Pid, Tag}] ->
             Pid ! {reply, {self(), Tag}, Msg},
             ets:delete(Pending, Serial),
-	    %%?debug("<~p> returns: ~p", [Serial, Msg#dbus_message.body]),
+	    %%?LOG_DEBUG("<~p> returns: ~p", [Serial, Msg#dbus_message.body]),
             {ok, State};
         _ ->
-            ?debug("Unexpected message: ~p~n", [Msg]),
+            ?LOG_DEBUG("Unexpected message: ~p~n", [Msg]),
             {error, unexpected_message, State}
     end;
 
@@ -435,15 +435,15 @@ handle_message(?TYPE_ERROR, Msg, #state{pending=Pending}=State) ->
         [{Serial, Pid, Tag}] ->
             Pid ! {error, {self(), Tag}, Msg},
             ets:delete(Pending, Serial),
-	    ?debug("<~p> error: ~p~n", [Serial, Msg#dbus_message.body]),
+	    ?LOG_DEBUG("<~p> error: ~p~n", [Serial, Msg#dbus_message.body]),
             {ok, State};
         _Err ->
 	    case dbus_message:is_error(Msg, <<"org.freedesktop.DBus.Error.NoReply">>) of
 		true ->
-		    ?debug("Ignoring NoReply on unknown serial~n", []),
+		    ?LOG_DEBUG("Ignoring NoReply on unknown serial~n", []),
 		    {ok, State};
 		false ->
-		    ?debug("Unexpected message: ~p~n", [Msg]),
+		    ?LOG_DEBUG("Unexpected message: ~p~n", [Msg]),
 		    {error, unexpected_message, State}
 	    end
     end;
@@ -461,7 +461,7 @@ handle_message(?TYPE_SIGNAL, Msg, #state{owner=Owner}=State) ->
     {ok, State};
 
 handle_message(Type, Msg, State) ->
-    ?debug("Ignore ~p ~p~n", [Type, Msg]),
+    ?LOG_DEBUG("Ignore ~p ~p~n", [Type, Msg]),
     {error, unexpected_message, State}.
 
 init_connection(Sock, ServiceReg, Owner) ->
@@ -475,13 +475,13 @@ init_connection(Sock, ServiceReg, Owner) ->
 
 process_ok(Data, #state{sock=Sock, waiting=Waiting}=State) ->
     Guid = parse_guid(Data),
-    ?debug("Got GUID '~s' from the server~n", [Guid]),
+    ?LOG_DEBUG("Got GUID '~s' from the server~n", [Guid]),
     case dbus_transport:support_unix_fd(Sock) of
         true ->
             ok = dbus_transport:send(Sock, <<"NEGOTIATE_UNIX_FD\r\n">>),
             {next_state, waiting_for_agree, State#state{guid=Guid, mech_state=undefined}};
         false ->
-	    ?debug("not negotiating unix fd passing, since not possible~n", []),
+	    ?LOG_DEBUG("not negotiating unix fd passing, since not possible~n", []),
             ok = dbus_transport:send(Sock, <<"BEGIN\r\n">>),
             lists:foreach(fun ({Pid, Tag}) ->
                                   Pid ! {authenticated, {self(), Tag}}
@@ -494,21 +494,21 @@ process_ok(Data, #state{sock=Sock, waiting=Waiting}=State) ->
 process_data(Data, #state{sock=Sock, mech_state={Mech, MechState}}=State) ->
     case Mech:challenge(Data, MechState) of
         {ok, Resp} ->
-            ?debug("DBUS auth: answering challenge~n", []),
+            ?LOG_DEBUG("DBUS auth: answering challenge~n", []),
             dbus_transport:send(Sock, << "DATA ", Resp/binary, "\r\n" >>),
             {next_state, waiting_for_ok, State};
         {continue, Resp, MechState} ->
-            ?debug("DBUS auth: answering challenge (continue)~n", []),
+            ?LOG_DEBUG("DBUS auth: answering challenge (continue)~n", []),
             dbus_transport:send(Sock, << "DATA ", Resp/binary, "\r\n" >>),
             {next_state, waiting_for_data, State#state{mech_state={Mech, MechState}}};
         {error, Err} ->
-            ?debug("Error with authentication challenge: ~p~n", [Err]),
+            ?LOG_DEBUG("Error with authentication challenge: ~p~n", [Err]),
             ok = dbus_transport:send(Sock, <<"CANCEL\r\n">>),
             {next_state, waiting_for_reject, State}
     end.
 
 process_rejected(_Data, #state{mechs=[], got_mechs=true}=State) ->
-    ?debug("~s: Disconnecting because we are out of mechanisms to try using~n", [State#state.side]),
+    ?LOG_DEBUG("~s: Disconnecting because we are out of mechanisms to try using~n", [State#state.side]),
     {stop, disconnect, State};
 
 process_rejected(Data, #state{mechs=[], got_mechs=false}=State) ->
@@ -524,21 +524,21 @@ process_rejected(_Data, State) ->
 
 
 try_next_auth(#state{sock=Sock, mechs=[ Mech | Rest ]}=State) ->
-    ?debug("~s: Trying mechanism ~s~n", [State#state.side, Mech]),
+    ?LOG_DEBUG("~s: Trying mechanism ~s~n", [State#state.side, Mech]),
     try Mech:init() of
         {ok, Resp} ->
-            ?debug("DBUS auth: waiting for OK~n", []),
+            ?LOG_DEBUG("DBUS auth: waiting for OK~n", []),
             dbus_transport:send(Sock, << "AUTH ", Resp/binary, "\r\n" >>),
             {next_state, waiting_for_ok, State#state{mechs=Rest}};
         {continue, Resp, MechState} ->
-            ?debug("DBUS auth: waiting for Data~n", []),
+            ?LOG_DEBUG("DBUS auth: waiting for Data~n", []),
             dbus_transport:send(Sock, << "AUTH ", Resp/binary, "\r\n" >>),
             {next_state, waiting_for_data, State#state{mechs=Rest, mech_state={Mech, MechState}}};
         {error, Err} ->
-            ?error("Error initializing authentication mechanism (~s): ~p", [Mech, Err]),
+            ?LOG_ERROR("Error initializing authentication mechanism (~s): ~p", [Mech, Err]),
             try_next_auth(State#state{mechs=Rest})
     catch _Cls:Err ->
-	    ?error("Exception initializing authentication mechanism (~s): ~p", [Mech, Err]),
+	    ?LOG_ERROR("Exception initializing authentication mechanism (~s): ~p", [Mech, Err]),
             try_next_auth(State#state{mechs=Rest})
     end.
 
@@ -578,15 +578,15 @@ record_mechs(<<$\s, Rest/bits>>, S) ->
 record_mechs(Bin, #state{mechs=Mechs}=S) ->
     case parse_mech(Bin) of
 	{unsupported, Name, Rest} ->
-	    ?debug("~s: Server offered mechanism \"~s\" that we don't know how to use~n", [S#state.side, Name]),
+	    ?LOG_DEBUG("~s: Server offered mechanism \"~s\" that we don't know how to use~n", [S#state.side, Name]),
             record_mechs(Rest, S);
         {Mech, Name, Rest} ->
 	    case lists:member(Mech, ?ALL_MECHANISMS) of
 		true ->
-		    ?debug("~s: Already tried mechanism ~s; not adding to list we will try~n", [S#state.side, Name]),
+		    ?LOG_DEBUG("~s: Already tried mechanism ~s; not adding to list we will try~n", [S#state.side, Name]),
 		    record_mechs(Rest, S);
 		false ->
-		    ?debug("~s: Adding mechanism ~s to list we will try~n", [S#state.side, Name]),
+		    ?LOG_DEBUG("~s: Adding mechanism ~s to list we will try~n", [S#state.side, Name]),
 		    record_mechs(Rest, S#state{mechs=[ Mech | Mechs ]})
 	    end
     end.

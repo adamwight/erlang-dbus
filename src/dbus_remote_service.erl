@@ -68,7 +68,7 @@ handle_call({get_object, Path}, {Pid, _Tag},
 		    ets:insert(Reg, {Path, Object, sets:from_list([Pid])}),
 		    {reply, {ok, Object}, State};
 		{error, Err} ->
-		    ?error("Error starting object ~p: ~p~n", [Path, Err]),
+		    ?LOG_ERROR("Error starting object ~p: ~p~n", [Path, Err]),
 		    {reply, {error, Err}, State}
 	    end
     end;
@@ -84,14 +84,14 @@ handle_call({release_object, Object}, {Pid, _}, State) ->
     end;
 
 handle_call(Request, _From, State) ->
-    ?error("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
     {reply, ok, State}.
 
 
 handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 
@@ -122,7 +122,7 @@ handle_info({proxy, Result, From, _Obj}, State) ->
     {noreply, State};
 
 handle_info(Info, State) ->
-    ?error("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
+    ?LOG_ERROR("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
 
@@ -130,7 +130,7 @@ terminate(_Reason, _State) ->
     terminated.
 
 handle_release_object(Object, Pid, #state{objects=Reg}=State) ->
-    ?debug("~p: ~p handle_release_object ~p~n", [?MODULE, self(), Object]),
+    ?LOG_DEBUG("~p: ~p handle_release_object ~p~n", [?MODULE, self(), Object]),
     case ets:match_object(Reg, {'_', Object, '_'}) of
 	[{Path, _, Pids}] ->
 	    case sets:is_element(Pid, Pids) of
@@ -140,11 +140,11 @@ handle_release_object(Object, Pid, #state{objects=Reg}=State) ->
 		    case sets:size(Pids2) of
 			0 ->
 						% No more pids, remove object
-			    ?debug("object terminated ~p ~p~n", [Object, Path]),
+			    ?LOG_DEBUG("object terminated ~p ~p~n", [Object, Path]),
 			    ets:delete(Reg, Path),
 			    case ets:info(Reg, size) of
 				0 ->
-				    ?debug("No more object in service, stopping service ~p~n", [State#state.name]),
+				    ?LOG_DEBUG("No more object in service, stopping service ~p~n", [State#state.name]),
 				    {stop, State};
 				_ ->
 				    {ok, State}

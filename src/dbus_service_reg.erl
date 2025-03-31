@@ -40,7 +40,7 @@ start_link() ->
 
 export_service(ServiceName) ->
     gen_server:call(?SERVER, {export_service, undefined, ServiceName}).
-	
+
 export_service(Service, ServiceName) ->
 		gen_server:call(?SERVER, {export_service, Service, ServiceName}).
 
@@ -66,19 +66,19 @@ handle_call({export_service, Service, ServiceName}, _From, State) ->
 	{value, {_, Service}} ->
 	    {reply, {ok, Service}, State};
 	_ ->
-	    ?debug("export_service name ~p~n", [ServiceName]),
+	    ?LOG_DEBUG("export_service name ~p~n", [ServiceName]),
 	    ok = dbus_bus_reg:export_service(Service, ServiceName),
 	    Services1 = [{ServiceName, Service}|Services],
 	    {reply, {ok, Service}, State#state{services=Services1}}
     end;
 
 handle_call(Request, _From, State) ->
-    ?error("Unhandled call in: ~p~n", [Request]),
+    ?LOG_ERROR("Unhandled call in: ~p~n", [Request]),
     {reply, ok, State}.
 
 
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in: ~p~n", [Request]),
+    ?LOG_ERROR("Unhandled cast in: ~p~n", [Request]),
     {noreply, State}.
 
 
@@ -99,7 +99,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
     Services = State#state.services,
     case lists:keysearch(Pid, 2, Services) of
 	{value, {ServiceName, _}} ->
-	    ?debug("~p Terminated ~p~n", [Pid, Reason]),
+	    ?LOG_DEBUG("~p Terminated ~p~n", [Pid, Reason]),
 	    ok = dbus_bus_reg:unexport_service(Pid, ServiceName),
 	    Services1 =
 		lists:keydelete(Pid, 2, Services),
@@ -114,7 +114,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
     end;
 
 handle_info(Info, State) ->
-    ?debug("Unhandled info in: ~p~n", [Info]),
+    ?LOG_DEBUG("Unhandled info in: ~p~n", [Info]),
     {noreply, State}.
 
 

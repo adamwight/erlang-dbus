@@ -5,7 +5,7 @@
 %% @author Tony Wallace <tony@tony.gen.nz> - added comments to code
 %% @doc Implements D-Bus connection over TCP
 %% This is done by starting a gen_server in response to a connect/3
-%% 
+%%
 %% Once started this server accepts the following calls:
 %%   gen_server:call(ServerRef,support_unix_fd) -> false
 %%   gen_server:call(ServerRef,{set_raw,true}) -> ok
@@ -49,7 +49,7 @@
 %% @end
 -type host() :: [inet:socket_address()|inet:hostname()].
 -type connect_options() :: [get_tcp:connect_option()].
--spec connect(host(),integer(),connect_options()) -> 
+-spec connect(host(),integer(),connect_options()) ->
 		     {ok,pid()} | ignore | {error,{already_started,pid()} | term()}.
 connect(Host, Port, Options) ->
     gen_server:start_link(?MODULE, [Host, Port, Options, self()], []).
@@ -62,11 +62,11 @@ init([Host, Port, Options, Owner]) ->
     case gen_tcp:connect(Host, Port, Options) of
 	{ok, Sock} ->
 	    ok = inet:setopts(Sock, [{keepalive, true},
-				     {active, once}, 
+				     {active, once},
 				     binary]),
 	    {ok, #state{sock=Sock, owner=Owner}};
 	{error, Err} ->
-	    ?error("Error opening socket: ~p~n", [Err]),
+	    ?LOG_ERROR("Error opening socket: ~p~n", [Err]),
 	    {error, Err}
     end.
 
@@ -82,7 +82,7 @@ handle_call({set_raw, true}, _From, #state{sock=Sock}=State) ->
     {reply, ok, State};
 
 handle_call(Request, _From, State) ->
-    ?error("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
     {reply, ok, State}.
 
 
@@ -98,7 +98,7 @@ handle_cast(stop, State) ->
     {stop, normal, State};
 
 handle_cast(Request, State) ->
-    ?error("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_ERROR("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 
@@ -112,7 +112,7 @@ handle_info({tcp_closed, Sock}, #state{sock=Sock, owner=Owner}=State) ->
     {stop, normal, State};
 
 handle_info(Info, State) ->
-    ?error("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
+    ?LOG_ERROR("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
 

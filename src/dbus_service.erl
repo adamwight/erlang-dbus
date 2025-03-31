@@ -81,14 +81,14 @@ handle_call({unregister_object, Object}, _From, State) ->
     end;
 
 handle_call(Request, _From, State) ->
-    ?debug("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_DEBUG("Unhandled call in ~p: ~p~n", [?MODULE, Request]),
     {reply, ok, State}.
 
 
 handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(Request, State) ->
-    ?debug("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
+    ?LOG_DEBUG("Unhandled cast in ~p: ~p~n", [?MODULE, Request]),
     {noreply, State}.
 
 
@@ -115,7 +115,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
     end;
 
 handle_info(Info, State) ->
-    ?debug("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
+    ?LOG_DEBUG("Unhandled info in ~p: ~p~n", [?MODULE, Info]),
     {noreply, State}.
 
 
@@ -130,11 +130,11 @@ handle_unregister_object(Object, State) ->
     case lists:keysearch(Object, 2, Objects) of
 	{value, {Path, _}} ->
 	    true = unlink(Object),
-	    ?debug("~p: Object terminated ~p ~p~n", [?MODULE, Object, Path]),
+	    ?LOG_DEBUG("~p: Object terminated ~p ~p~n", [?MODULE, Object, Path]),
 	    Objects1 = lists:keydelete(Object, 2, Objects),
 	    if
 		Objects1 == [] ->
-		    ?debug("~p: No more objects stopping ~p service~n", [?MODULE, State#state.name]),
+		    ?LOG_DEBUG("~p: No more objects stopping ~p service~n", [?MODULE, State#state.name]),
 		    {stop, State};
 		true ->
 		    {ok, State#state{objects=Objects1}}
@@ -155,7 +155,7 @@ handle_method_call(<<"/">>, #dbus_message{}=Msg, Conn,
 				   end, [], Objects),
 	    Node = #dbus_node{name="/", elements=Elements},
 	    ReplyBody = dbus_introspect:to_xml(Node),
-	    ?debug("Introspect ~p~n", [ReplyBody]),
+	    ?LOG_DEBUG("Introspect ~p~n", [ReplyBody]),
 	    Reply = dbus_message:return(Msg, [string], [ReplyBody]),
 	    ok = dbus_connection:cast(Conn, Reply),
 	    {noreply, State};
@@ -174,7 +174,7 @@ handle_method_call(Path, #dbus_message{}=Msg, Conn, #state{objects=Objects}=Stat
 	    ErrorName = 'org.freedesktop.DBus.Error.UnknownObject',
 	    ErrorText = <<"Erlang: Object not found: ", Path/binary>>,
 	    Reply = dbus_message:error(Msg, ErrorName, ErrorText),
-	    ?debug("Reply ~p~n", [Reply]),
+	    ?LOG_DEBUG("Reply ~p~n", [Reply]),
 	    ok = dbus_connection:cast(Conn, Reply);
 	Object ->
 	    Object ! {dbus_method_call, Msg, Conn}
